@@ -2,6 +2,7 @@ pub mod html_mermaid;
 pub mod html_preprocessor;
 pub mod image_preprocessor;
 pub mod mermaid;
+pub mod plain_mermaid;
 pub mod render;
 pub mod themes;
 pub mod utils;

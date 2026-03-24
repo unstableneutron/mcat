@@ -1,6 +1,6 @@
 use image::DynamicImage;
 #[cfg(test)]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::cell::Cell;
 use std::fmt;
 
 use crate::converter;
@@ -120,17 +120,33 @@ fn is_supported_mermaid_header(line: &str) -> bool {
 }
 
 #[cfg(test)]
-static IMAGE_RENDER_FAILURE_FOR_TESTS: AtomicBool = AtomicBool::new(false);
+thread_local! {
+    static IMAGE_RENDER_FAILURE_DEPTH_FOR_TESTS: Cell<usize> = const { Cell::new(0) };
+}
 
 #[cfg(test)]
-pub(crate) fn set_image_render_failure_for_tests(enabled: bool) {
-    IMAGE_RENDER_FAILURE_FOR_TESTS.store(enabled, Ordering::Relaxed);
+pub(crate) fn with_image_render_failure_for_tests<R>(operation: impl FnOnce() -> R) -> R {
+    struct ScopedImageRenderFailureGuard;
+
+    impl Drop for ScopedImageRenderFailureGuard {
+        fn drop(&mut self) {
+            IMAGE_RENDER_FAILURE_DEPTH_FOR_TESTS.with(|depth| {
+                depth.set(depth.get().saturating_sub(1));
+            });
+        }
+    }
+
+    IMAGE_RENDER_FAILURE_DEPTH_FOR_TESTS.with(|depth| {
+        depth.set(depth.get() + 1);
+    });
+    let _guard = ScopedImageRenderFailureGuard;
+    operation()
 }
 
 fn should_inject_image_render_failure() -> bool {
     #[cfg(test)]
     {
-        IMAGE_RENDER_FAILURE_FOR_TESTS.load(Ordering::Relaxed)
+        IMAGE_RENDER_FAILURE_DEPTH_FOR_TESTS.with(|depth| depth.get() > 0)
     }
     #[cfg(not(test))]
     {
@@ -142,7 +158,7 @@ fn should_inject_image_render_failure() -> bool {
 mod tests {
     use super::{
         is_mermaid_info, render_ansi_mermaid, render_image_mermaid, render_mermaid_html,
-        render_svg_mermaid, set_image_render_failure_for_tests,
+        render_svg_mermaid, with_image_render_failure_for_tests,
     };
 
     const VALID_MERMAID: &str = "flowchart TD\nA-->B";
@@ -201,12 +217,26 @@ mod tests {
 
     #[test]
     fn image_renderer_exposes_failure_injection_after_svg_render() {
-        set_image_render_failure_for_tests(true);
-        let err = render_image_mermaid(VALID_MERMAID).unwrap_err();
-        set_image_render_failure_for_tests(false);
+        let err = with_image_render_failure_for_tests(|| render_image_mermaid(VALID_MERMAID))
+            .unwrap_err();
         assert!(
             err.to_string()
                 .contains("injected image conversion failure for tests")
         );
+    }
+
+    #[test]
+    fn image_renderer_failure_injection_does_not_leak_after_scope() {
+        with_image_render_failure_for_tests(|| {
+            let err = render_image_mermaid(VALID_MERMAID).unwrap_err();
+            assert!(
+                err.to_string()
+                    .contains("injected image conversion failure for tests")
+            );
+        });
+
+        let img = render_image_mermaid(VALID_MERMAID).unwrap();
+        assert!(img.width() > 0);
+        assert!(img.height() > 0);
     }
 }

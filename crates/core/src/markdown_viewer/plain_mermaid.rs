@@ -80,7 +80,12 @@ fn replacement_for_node<'a>(
 
     let (start, end) = sourcepos_to_range(markdown, line_starts, data.sourcepos)?;
     let actual_start = fence_start_byte(markdown, line_starts, data.sourcepos.start.line, start)?;
-    let prefix = line_prefix(markdown, line_starts, data.sourcepos.start.line, actual_start)?;
+    let prefix = line_prefix(
+        markdown,
+        line_starts,
+        data.sourcepos.start.line,
+        actual_start,
+    )?;
     let rendered = mermaid::render_ansi_mermaid(&code_block.literal).ok()?;
 
     Some(Replacement {

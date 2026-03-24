@@ -149,6 +149,15 @@ images in the ANSI markdown renderer:
   path.
 - If `--fast` disables markdown images, Mermaid should also fall back to the
   normal ANSI Mermaid path.
+- If `--md-image all` is active, Mermaid inline images should use the same
+  normal sizing policy as markdown images.
+- If `--md-image small` is active, Mermaid inline images should reuse the same
+  reduced-height sizing heuristic as markdown images rather than inventing a
+  Mermaid-specific compact mode.
+- If `--md-image auto` is active, Mermaid inline images should follow the same
+  encoder-based policy that markdown images already use: full images on Kitty,
+  reduced-height images on iTerm/Sixel, and no inline images on ASCII-only
+  terminals.
 - No new Mermaid-specific CLI flag is introduced for this behavior in this
   iteration.
 
@@ -177,6 +186,10 @@ Add regression coverage for:
   terminal inline images when the inline encoder is image-capable.
 - Mermaid code fences still render as ANSI/Unicode diagrams on ASCII-only
   terminals.
+- Mermaid inline images are suppressed when markdown inline images are disabled
+  through `--md-image none` or `--fast`.
+- Mermaid inline images follow the existing markdown image size policy for
+  `--md-image all|small|auto`.
 - `auto` mode falls back to normal code rendering when Mermaid image generation
   fails.
 - `always` mode still produces explicit failure output and non-zero exit status

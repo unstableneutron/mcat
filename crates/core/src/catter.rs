@@ -115,8 +115,26 @@ pub fn cat(files: Vec<McatFile>, out: &mut impl Write, config: &McatConfig) -> R
     // converting
     match output {
         Some(OutputFormat::Html) => {
-            let html = mcat_file.to_html(Some(config.theme.clone()), config.inline_images_in_md)?;
-            out.write_all(html.as_bytes())?
+            if matches!(mcat_file.kind, McatKind::Markdown | McatKind::PreMarkdown) {
+                let md = mcat_file
+                    .to_markdown_input(config.inline_images_in_md)?
+                    .convert()?;
+                let rendered = markdown_viewer::md_to_html_rendered(
+                    &md,
+                    &config.theme,
+                    config.style_html,
+                    config.md_mermaid_render,
+                );
+                out.write_all(rendered.content.as_bytes())?;
+                if let Some(err) = rendered.strict_failure {
+                    out.flush()?;
+                    return Err(err.into());
+                }
+            } else {
+                let html =
+                    mcat_file.to_html(Some(config.theme.clone()), config.inline_images_in_md)?;
+                out.write_all(html.as_bytes())?
+            }
         }
         Some(OutputFormat::Md) => {
             let md = mcat_file

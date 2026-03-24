@@ -1,3 +1,4 @@
+pub mod html_mermaid;
 pub mod html_preprocessor;
 pub mod image_preprocessor;
 pub mod mermaid;
@@ -14,7 +15,7 @@ use render::{AnsiContext, RESET, parse_node};
 use syntect::highlighting::ThemeSet;
 use themes::CustomTheme;
 
-use crate::config::{McatConfig, Theme};
+use crate::config::{McatConfig, MdMermaidRender, Theme};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -100,7 +101,17 @@ pub(crate) fn md_to_ansi_rendered(
 }
 
 pub fn md_to_html(markdown: &str, theme: &Theme, style: bool) -> String {
+    md_to_html_rendered(markdown, theme, style, MdMermaidRender::Never).content
+}
+
+pub(crate) fn md_to_html_rendered(
+    markdown: &str,
+    theme: &Theme,
+    style: bool,
+    md_mermaid_render: MdMermaidRender,
+) -> RenderedMarkdown {
     let options = comrak_options();
+    let rewritten = html_mermaid::rewrite_markdown(markdown, md_mermaid_render, &options);
 
     let theme = CustomTheme::from(theme);
     let mut theme_set = ThemeSet::load_defaults();
@@ -121,8 +132,8 @@ pub fn md_to_html(markdown: &str, theme: &Theme, style: bool) -> String {
         false => None,
     };
 
-    let html = markdown_to_html_with_plugins(markdown, &options, &plugins);
-    match full_css {
+    let html = markdown_to_html_with_plugins(&rewritten.markdown, &options, &plugins);
+    let content = match full_css {
         Some(css) => format!(
             r#"
 <!DOCTYPE html>
@@ -139,6 +150,11 @@ pub fn md_to_html(markdown: &str, theme: &Theme, style: bool) -> String {
             css, html
         ),
         None => html,
+    };
+
+    RenderedMarkdown {
+        content,
+        strict_failure: rewritten.strict_failure,
     }
 }
 

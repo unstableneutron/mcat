@@ -32,17 +32,69 @@ pub fn is_mermaid_info(info: &str) -> bool {
 }
 
 pub fn render_ansi_mermaid(source: &str) -> Result<String, MermaidError> {
+    ensure_supported_diagram_kind(source, "ANSI")?;
     let config = console_mermaid::diagram::Config::default_config();
     console_mermaid::render_diagram(source, &config).map_err(|err| MermaidError::new("ANSI", err))
 }
 
 pub fn render_svg_mermaid(source: &str) -> Result<String, MermaidError> {
+    ensure_supported_diagram_kind(source, "SVG")?;
     mermaid_rs_renderer::render(source).map_err(|err| MermaidError::new("SVG", err.to_string()))
 }
 
 pub fn render_mermaid_html(source: &str) -> Result<String, MermaidError> {
     let svg = render_svg_mermaid(source)?;
     Ok(format!("<div class=\"mcat-mermaid\">{svg}</div>"))
+}
+
+fn ensure_supported_diagram_kind(source: &str, backend: &'static str) -> Result<(), MermaidError> {
+    if first_meaningful_line(source).is_some_and(is_supported_mermaid_header) {
+        return Ok(());
+    }
+    Err(MermaidError::new(
+        backend,
+        "unsupported or missing Mermaid diagram header",
+    ))
+}
+
+fn first_meaningful_line(source: &str) -> Option<&str> {
+    source
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with("%%"))
+}
+
+fn is_supported_mermaid_header(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    [
+        "flowchart",
+        "graph",
+        "sequencediagram",
+        "classdiagram",
+        "statediagram",
+        "statediagram-v2",
+        "erdiagram",
+        "pie",
+        "xychart",
+        "quadrantchart",
+        "gantt",
+        "timeline",
+        "journey",
+        "mindmap",
+        "gitgraph",
+        "requirementdiagram",
+        "c4",
+        "sankey",
+        "zenuml",
+        "block",
+        "packet",
+        "kanban",
+        "architecture",
+        "radar",
+        "treemap",
+    ]
+    .iter()
+    .any(|prefix| lower.starts_with(prefix))
 }
 
 #[cfg(test)]
@@ -76,5 +128,14 @@ mod tests {
         let html = render_mermaid_html(VALID_MERMAID).unwrap();
         assert!(html.contains("class=\"mcat-mermaid\""));
         assert!(html.contains("<svg"));
+    }
+
+    #[test]
+    fn unsupported_header_is_rejected() {
+        let err = render_svg_mermaid("not a diagram").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("unsupported or missing Mermaid diagram header")
+        );
     }
 }

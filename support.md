@@ -15,3 +15,11 @@
 >
 > - files Compressed with `.xz` or `.gz` will also work
 > - `pdf`, `typst`, and `tex` when passed alone into the interactive viewer, will show all their pages
+## Mermaid rendering support for Markdown
+
+Enable with `--md-mermaid <auto|always|never>` or `MCAT_MD_MERMAID=<auto|always|never>`.
+
+- Default (`never`): Mermaid fences render as normal code blocks.
+- ANSI markdown viewer: Mermaid fences render as ANSI/Unicode diagrams.
+- HTML output: Mermaid fences are rewritten to inline `<svg`.
+- Image-capable outputs (`image`, `inline`, `interactive`): use the HTML Mermaid rewrite path before image capture.

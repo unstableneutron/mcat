@@ -243,4 +243,30 @@ mod tests {
         assert!(rewritten.markdown.contains("Mermaid render failed"));
         assert!(rewritten.strict_failure.is_some());
     }
+
+    #[test]
+    fn rewrites_multiple_mermaid_blocks_independently() {
+        let options = comrak_options();
+        let rewritten = rewrite_markdown(
+            "```mermaid\nflowchart TD\nA-->B\n```\n\n```rust\nfn main() {}\n```\n\n```mermaid\nflowchart LR\nC-->D\n```",
+            MdMermaidRender::Auto,
+            &options,
+        );
+        assert_eq!(rewritten.markdown.matches("<svg").count(), 2);
+        assert!(rewritten.markdown.contains("```rust"));
+        assert!(rewritten.strict_failure.is_none());
+    }
+
+    #[test]
+    fn rewrites_mermaid_with_directive_prefixed_source() {
+        let options = comrak_options();
+        let rewritten = rewrite_markdown(
+            "```mermaid\n%%{init: {'theme': 'dark'}}%%\nflowchart TD\nA-->B\n```",
+            MdMermaidRender::Auto,
+            &options,
+        );
+        assert!(rewritten.markdown.contains("<svg"));
+        assert!(!rewritten.markdown.contains("```mermaid"));
+        assert!(rewritten.strict_failure.is_none());
+    }
 }

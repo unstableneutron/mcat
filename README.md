@@ -209,6 +209,69 @@ To see which file types support which features, see the table [here](./support.m
 
 </details>
 
+## Configuring
+
+<details>
+<summary><strong>Using Flags</strong></summary>
+
+---
+
+the main flags for configuring are:
+
+- `--opts` for inline image printing
+- `--ls-opts` for the ls command
+- `--md-mermaid <auto|always|never>` controls Mermaid fenced block rendering in markdown inputs
+
+run `mcat --help` for full detail, and other flags.
+
+---
+
+</details>
+
+<details>
+<summary><strong>Using Environment Variables</strong></summary>
+
+---
+
+each variable mimicks its corresponding flag alternative.
+
+- `MCAT_ENCODER`, Options: kitty,iterm,sixel,ascii. e.g. MCAT_ENCODER=kitty is the same as doing `--kitty`
+- `MCAT_PAGER`, \<str\> the full command mcat will try to pipe into.
+- `MCAT_THEME`, \<str\> same as the `--theme` flag
+- `MCAT_INLINE_OPTS`, \<str\> same as the `--opts` flag
+- `MCAT_LS_OPTS`, \<str\> same as the `--ls-opts` flag
+- `MCAT_SILENT`, \<bool\> same as the `--silent` flag
+- `MCAT_HYPRLINK`, \<bool\> same as the `--hyprlink` flag
+- `MCAT_NO_LINENUMBERS`, \<bool\> same as the `--no-linenumbers` flag
+- `MCAT_MD_IMAGE`, \<bool\> same as the `--no-images` flag
+- `MCAT_MD_MERMAID`, `auto|always|never`, same as `--md-mermaid`
+
+---
+
+</details>
+
+### Mermaid in Markdown
+
+Mermaid rendering only applies to fenced code blocks with info string exactly `mermaid`.
+
+- `--md-mermaid never` (default): keep Mermaid fences as normal code blocks.
+- `--md-mermaid auto`: try Mermaid rendering and fall back to normal code rendering if Mermaid fails.
+- `--md-mermaid always`: require Mermaid rendering; on failure print an explicit Mermaid failure block and exit non-zero.
+
+Output behavior:
+
+- ANSI markdown viewer (default): Mermaid fences render as ANSI/Unicode diagrams.
+- HTML output: Mermaid fences are rewritten to inline `<svg`.
+- `image`, `inline`, and `interactive` outputs: use the same inline-SVG HTML path before image rendering.
+- Raw markdown output (`-o md`) keeps source fences and does not render Mermaid.
+
+## Roadmap
+
+- [ ] mcat.nvim: a neovim plugin to use mcat inside neovim
+
+## License
+
+MIT License
 ---
 
 <div align="center">

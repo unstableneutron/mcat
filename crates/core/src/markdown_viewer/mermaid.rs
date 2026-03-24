@@ -1,4 +1,9 @@
+use image::DynamicImage;
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::fmt;
+
+use crate::converter;
 
 #[derive(Debug)]
 pub struct MermaidError {
@@ -42,9 +47,26 @@ pub fn render_svg_mermaid(source: &str) -> Result<String, MermaidError> {
     mermaid_rs_renderer::render(source).map_err(|err| MermaidError::new("SVG", err.to_string()))
 }
 
+pub fn render_image_mermaid(source: &str) -> Result<DynamicImage, MermaidError> {
+    let svg = render_svg_mermaid(source)?;
+    render_svg_as_image(&svg)
+}
+
 pub fn render_mermaid_html(source: &str) -> Result<String, MermaidError> {
     let svg = render_svg_mermaid(source)?;
     Ok(format!("<div class=\"mcat-mermaid\">{svg}</div>"))
+}
+
+fn render_svg_as_image(svg: &str) -> Result<DynamicImage, MermaidError> {
+    if should_inject_image_render_failure() {
+        return Err(MermaidError::new(
+            "Image",
+            "injected image conversion failure for tests",
+        ));
+    }
+
+    converter::svg_to_image(svg.as_bytes(), None, None)
+        .map_err(|err| MermaidError::new("Image", err.to_string()))
 }
 
 fn ensure_supported_diagram_kind(source: &str, backend: &'static str) -> Result<(), MermaidError> {
@@ -98,8 +120,30 @@ fn is_supported_mermaid_header(line: &str) -> bool {
 }
 
 #[cfg(test)]
+static IMAGE_RENDER_FAILURE_FOR_TESTS: AtomicBool = AtomicBool::new(false);
+
+#[cfg(test)]
+pub(crate) fn set_image_render_failure_for_tests(enabled: bool) {
+    IMAGE_RENDER_FAILURE_FOR_TESTS.store(enabled, Ordering::Relaxed);
+}
+
+fn should_inject_image_render_failure() -> bool {
+    #[cfg(test)]
+    {
+        IMAGE_RENDER_FAILURE_FOR_TESTS.load(Ordering::Relaxed)
+    }
+    #[cfg(not(test))]
+    {
+        false
+    }
+}
+
+#[cfg(test)]
 mod tests {
-    use super::{is_mermaid_info, render_ansi_mermaid, render_mermaid_html, render_svg_mermaid};
+    use super::{
+        is_mermaid_info, render_ansi_mermaid, render_image_mermaid, render_mermaid_html,
+        render_svg_mermaid, set_image_render_failure_for_tests,
+    };
 
     const VALID_MERMAID: &str = "flowchart TD\nA-->B";
 
@@ -136,6 +180,33 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("unsupported or missing Mermaid diagram header")
+        );
+    }
+
+    #[test]
+    fn image_renderer_returns_dynamic_image_for_valid_mermaid() {
+        let img = render_image_mermaid(VALID_MERMAID).unwrap();
+        assert!(img.width() > 0);
+        assert!(img.height() > 0);
+    }
+
+    #[test]
+    fn image_renderer_rejects_unsupported_header() {
+        let err = render_image_mermaid("not a diagram").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("unsupported or missing Mermaid diagram header")
+        );
+    }
+
+    #[test]
+    fn image_renderer_exposes_failure_injection_after_svg_render() {
+        set_image_render_failure_for_tests(true);
+        let err = render_image_mermaid(VALID_MERMAID).unwrap_err();
+        set_image_render_failure_for_tests(false);
+        assert!(
+            err.to_string()
+                .contains("injected image conversion failure for tests")
         );
     }
 }

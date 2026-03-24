@@ -7,7 +7,13 @@ use regex::Regex;
 use strip_ansi_escapes::strip_str;
 use syntect::parsing::SyntaxSet;
 
-use crate::markdown_viewer::utils::{string_len, trim_ansi_string, wrap_lines};
+use crate::{
+    config::MdMermaidRender,
+    markdown_viewer::{
+        mermaid,
+        utils::{string_len, trim_ansi_string, wrap_lines},
+    },
+};
 
 use super::{
     image_preprocessor::ImagePreprocessor,
@@ -38,6 +44,8 @@ pub struct AnsiContext {
     pub show_frontmatter: bool,
     pub center: bool,
     pub image_preprocessor: ImagePreprocessor,
+    pub md_mermaid_render: MdMermaidRender,
+    pub strict_mermaid_failure: Option<String>,
 
     pub blockquote_fenced_offset: Option<usize>,
     pub is_multi_block_quote: bool,
@@ -296,6 +304,20 @@ fn render_code_block<'a>(node: &'a AstNode<'a>, ctx: &mut AnsiContext) -> String
     };
     let literal = &node_code_block.literal;
     let info = &node_code_block.info;
+
+    if mermaid::is_mermaid_info(info) && ctx.md_mermaid_render.should_try_rendering() {
+        match mermaid::render_ansi_mermaid(literal) {
+            Ok(rendered) => return rendered,
+            Err(err) if ctx.md_mermaid_render.is_strict() => {
+                let failure = err.to_string();
+                if ctx.strict_mermaid_failure.is_none() {
+                    ctx.strict_mermaid_failure = Some(failure.clone());
+                }
+                return format_code_box(&failure, "text", "Mermaid render failed", ctx);
+            }
+            Err(_) => {}
+        }
+    }
 
     let info = if info.trim().is_empty() { "text" } else { info };
 

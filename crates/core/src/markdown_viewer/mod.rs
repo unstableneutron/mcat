@@ -23,6 +23,19 @@ pub fn md_to_ansi(
     mut config: McatConfig,
     markdown_file_path: Option<&Path>,
 ) -> Result<String> {
+    Ok(md_to_ansi_rendered(md, config, markdown_file_path)?.content)
+}
+
+pub struct RenderedMarkdown {
+    pub content: String,
+    pub strict_failure: Option<String>,
+}
+
+pub(crate) fn md_to_ansi_rendered(
+    md: &str,
+    mut config: McatConfig,
+    markdown_file_path: Option<&Path>,
+) -> Result<RenderedMarkdown> {
     let md = html_preprocessor::process(md);
 
     let arena = Arena::new();
@@ -50,6 +63,8 @@ pub fn md_to_ansi(
         center: false,
         image_preprocessor,
         show_frontmatter: config.header,
+        md_mermaid_render: config.md_mermaid_render,
+        strict_mermaid_failure: None,
 
         blockquote_fenced_offset: None,
         is_multi_block_quote: false,
@@ -65,6 +80,7 @@ pub fn md_to_ansi(
     output.push_str(&parse_node(root, &mut ctx));
 
     let mut res = output.replace(RESET, &format!("{RESET}{}", &ctx.theme.foreground.fg));
+    let strict_failure = ctx.strict_mermaid_failure.take();
 
     // replace images
     for (_, img) in ctx.image_preprocessor.mapper {
@@ -77,7 +93,10 @@ pub fn md_to_ansi(
         res = res.lines().map(|line| format!("{pad}{line}")).join("\n");
     }
 
-    Ok(res)
+    Ok(RenderedMarkdown {
+        content: res,
+        strict_failure,
+    })
 }
 
 pub fn md_to_html(markdown: &str, theme: &Theme, style: bool) -> String {

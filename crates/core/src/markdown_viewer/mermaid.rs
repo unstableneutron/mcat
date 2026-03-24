@@ -17,7 +17,11 @@ impl MermaidError {
 
 impl fmt::Display for MermaidError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} Mermaid render failed: {}", self.backend, self.message)
+        write!(
+            f,
+            "{} Mermaid render failed: {}",
+            self.backend, self.message
+        )
     }
 }
 
@@ -29,8 +33,7 @@ pub fn is_mermaid_info(info: &str) -> bool {
 
 pub fn render_ansi_mermaid(source: &str) -> Result<String, MermaidError> {
     let config = console_mermaid::diagram::Config::default_config();
-    console_mermaid::render_diagram(source, &config)
-        .map_err(|err| MermaidError::new("ANSI", err))
+    console_mermaid::render_diagram(source, &config).map_err(|err| MermaidError::new("ANSI", err))
 }
 
 pub fn render_svg_mermaid(source: &str) -> Result<String, MermaidError> {
@@ -44,9 +47,7 @@ pub fn render_mermaid_html(source: &str) -> Result<String, MermaidError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        is_mermaid_info, render_ansi_mermaid, render_mermaid_html, render_svg_mermaid,
-    };
+    use super::{is_mermaid_info, render_ansi_mermaid, render_mermaid_html, render_svg_mermaid};
 
     const VALID_MERMAID: &str = "flowchart TD\nA-->B";
 

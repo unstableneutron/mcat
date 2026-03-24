@@ -14,7 +14,7 @@ use std::{
 use tracing::{info, warn};
 
 use crate::{
-    config::{ColorMode, McatConfig, OutputFormat},
+    config::{ColorMode, McatConfig, MdMermaidRender, OutputFormat},
     image_viewer::{clear_screen, run_interactive_viewer, show_help_prompt},
     markdown_viewer,
     mcat_file::{McatFile, McatKind},
@@ -165,11 +165,32 @@ pub fn cat(files: Vec<McatFile>, out: &mut impl Write, config: &McatConfig) -> R
                 ColorMode::Always => true,
                 ColorMode::Auto => is_tty,
             };
-            let content = match use_color {
-                true => {
-                    markdown_viewer::md_to_ansi(&md, config.clone(), mcat_file.path.as_deref())?
+            let strict_mermaid_mode = matches!(config.md_mermaid_render, MdMermaidRender::Always);
+            let (content, strict_failure) = match use_color {
+                true if strict_mermaid_mode => {
+                    let rendered = markdown_viewer::md_to_ansi_rendered(
+                        &md,
+                        config.clone(),
+                        mcat_file.path.as_deref(),
+                    )?;
+                    (rendered.content, rendered.strict_failure)
                 }
-                false => md,
+                true => (
+                    markdown_viewer::md_to_ansi(&md, config.clone(), mcat_file.path.as_deref())?,
+                    None,
+                ),
+                false if strict_mermaid_mode => {
+                    let rendered = markdown_viewer::md_to_ansi_rendered(
+                        &md,
+                        config.clone(),
+                        mcat_file.path.as_deref(),
+                    )?;
+                    (
+                        strip_ansi_escapes::strip_str(&rendered.content).to_string(),
+                        rendered.strict_failure,
+                    )
+                }
+                false => (md, None),
             };
 
             let use_pager = match config.paging {
@@ -193,6 +214,11 @@ pub fn cat(files: Vec<McatFile>, out: &mut impl Write, config: &McatConfig) -> R
                 }
             } else {
                 out.write_all(content.as_bytes())?;
+            }
+
+            if let Some(err) = strict_failure {
+                out.flush()?;
+                return Err(err.into());
             }
         }
     }

@@ -14,14 +14,16 @@ the existing ANSI fallback and HTML inline-SVG behavior.
 - HTML markdown output rewrites `mermaid` fences into inline SVG via
   `mermaid-rs-renderer`.
 
-Image-capable markdown outputs such as `--output inline` and
-`--output interactive` do not currently use Mermaid's native Rust renderers.
-They first render the entire markdown document to HTML and then rasterize that
-HTML through the Chromium-backed `html_to_image` pipeline. That architecture is
-appropriate for full-page screenshot modes, but it unnecessarily ties Mermaid
-diagram rendering to browser availability even though `mermaid-rs-renderer` and
-`mcat`'s existing SVG rasterization path can render Mermaid diagrams directly in
-Rust.
+The ANSI markdown renderer currently treats Mermaid as text output only. In that
+path, image-capable terminals still receive ANSI / Unicode Mermaid output rather
+than a real inline image, even though `mermaid-rs-renderer` and `mcat`'s
+existing SVG rasterization path can render Mermaid diagrams directly in Rust.
+
+Separately, full-document markdown screenshot outputs such as `--output image`,
+`--output inline`, and `--output interactive` already render the entire markdown
+document to HTML and then rasterize that HTML through the Chromium-backed
+`html_to_image` pipeline. That browser-backed path remains appropriate for
+whole-page screenshots and is not the target of this design.
 
 ## Approaches Considered
 
@@ -42,24 +44,24 @@ surface area than Mermaid support alone.
 ### 3. Add a Mermaid-only terminal image path inside the ANSI markdown renderer
 
 This keeps the existing full-document browser path for `md -> image`,
-`md -> inline`, and `md -> interactive`, but allows Mermaid code fences to be
-rendered as inline terminal images directly inside ANSI markdown rendering when
-the terminal supports inline images. Non-image terminals continue to use the
-existing ANSI/Unicode Mermaid renderer. This is the recommended approach because
-it isolates the change to Mermaid blocks, reuses existing image-encoding
-infrastructure, and removes the browser dependency from the Mermaid-specific
-path without redesigning the rest of markdown rendering.
+`md -> inline`, and `md -> interactive` unchanged, but allows Mermaid code
+fences to be rendered as inline terminal images directly inside the ANSI
+markdown renderer when the terminal supports inline images. Non-image terminals
+continue to use the existing ANSI/Unicode Mermaid renderer. This is the
+recommended approach because it isolates the change to Mermaid blocks, reuses
+existing image-encoding infrastructure, and removes the browser dependency from
+the Mermaid-specific ANSI markdown path without redesigning the rest of markdown
+rendering.
 
 ## Recommended Design
 
 ### Rendering behavior
 
-For `mermaid` code fences:
+For `mermaid` code fences in the ANSI markdown renderer:
 
-- On image-capable markdown paths, render Mermaid to SVG with
-  `mermaid-rs-renderer`, rasterize the SVG with `converter::svg_to_image`, and
-  encode the raster image with the same terminal image machinery already used by
-  markdown image nodes.
+- On image-capable terminals, render Mermaid to SVG with `mermaid-rs-renderer`,
+  rasterize the SVG with `converter::svg_to_image`, and encode the raster image
+  with the same terminal image machinery already used by markdown image nodes.
 - On non-image-capable markdown paths, keep using `console-mermaid` for ANSI /
   Unicode output.
 - On HTML output, keep rewriting Mermaid fences into inline SVG as today.
@@ -74,10 +76,10 @@ The existing `--md-mermaid auto|always|never` contract remains unchanged:
 
 ### Scope
 
-This design only changes Mermaid block rendering inside markdown viewers. It
-does not replace the browser-backed full-document image pipeline used for
-`--output image`, `--output inline`, or `--output interactive` when those modes
-render an entire markdown document as a single rasterized page.
+This design only changes Mermaid block rendering inside the ANSI markdown
+viewer. It does not replace the browser-backed full-document image pipeline
+used for `--output image`, `--output inline`, or `--output interactive` when
+those modes render an entire markdown document as a single rasterized page.
 
 ### Architecture
 
@@ -91,8 +93,8 @@ That helper should:
 - Return both the inline image payload and a placeholder marker so block layout
   remains compatible with the existing text post-processing strategy.
 
-The ANSI markdown renderer should then treat Mermaid blocks similarly to markdown
-image nodes when the configured inline encoder is image-capable.
+The ANSI markdown renderer should then treat Mermaid blocks similarly to
+markdown image nodes when the configured inline encoder is image-capable.
 
 ### File-level changes
 
@@ -123,9 +125,35 @@ model already used for markdown images:
 - After text rendering completes, Mermaid inline images replace those
   placeholders with the encoded terminal image payload.
 
+That placeholder contract must reuse the current markdown-image placeholder
+shaping rules rather than inventing a simpler token. The replacement mechanism
+must preserve:
+
+- uniqueness per rendered Mermaid block
+- placeholder width and height compatibility with the encoded payload
+- multiline Kitty payload behavior
+- compatibility with the existing placeholder replacement pass in the markdown
+  post-processing stage
+
 This avoids mixing multiline terminal image payload generation directly into the
 node renderer's layout logic and keeps Mermaid image handling consistent with
 current markdown image processing.
+
+### Interaction with `--md-image` and `--fast`
+
+Mermaid inline images should follow the same gating policy as markdown inline
+images in the ANSI markdown renderer:
+
+- If `--md-image` disables inline markdown images, Mermaid should not emit
+  terminal inline images either and should fall back to the normal ANSI Mermaid
+  path.
+- If `--fast` disables markdown images, Mermaid should also fall back to the
+  normal ANSI Mermaid path.
+- No new Mermaid-specific CLI flag is introduced for this behavior in this
+  iteration.
+
+This keeps terminal-image policy centralized and avoids surprising users with
+Mermaid blocks bypassing markdown image controls.
 
 ### Error handling
 
@@ -145,6 +173,8 @@ Add regression coverage for:
 
 - Mermaid code fences render as terminal inline images when the inline encoder
   is image-capable.
+- Mermaid code fences in blockquotes and list items still render as valid
+  terminal inline images when the inline encoder is image-capable.
 - Mermaid code fences still render as ANSI/Unicode diagrams on ASCII-only
   terminals.
 - `auto` mode falls back to normal code rendering when Mermaid image generation
@@ -154,6 +184,9 @@ Add regression coverage for:
 - Nested Mermaid fences in blockquotes and list items continue to preserve
   surrounding layout behavior on the ANSI/plain fallback paths.
 - HTML output remains inline SVG and does not regress.
+- `md -> image`, `md -> inline`, and `md -> interactive` retain the existing
+  browser-backed full-document screenshot path and are not silently rerouted by
+  this feature.
 
 ### Risks
 

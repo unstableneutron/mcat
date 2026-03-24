@@ -124,6 +124,12 @@ pub struct McatConfig {
         env = "MCAT_MD_IMAGE")]
     pub md_image: MdImageMode,
 
+    /// What Mermaid blocks to render in the markdown
+    #[arg(long = "md-mermaid", value_name = "mode", help_heading = "Markdown Viewing",
+        default_value_t = MdMermaidRender::Never,
+        env = "MCAT_MD_MERMAID")]
+    pub md_mermaid_render: MdMermaidRender,
+
     /// Shortcut for --md-image none
     #[arg(short = 'f', help_heading = "Markdown Viewing")]
     fast: bool,
@@ -502,6 +508,30 @@ pub enum MdImageMode {
 }
 
 impl std::fmt::Display for MdImageMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.to_possible_value().unwrap().get_name().fmt(f)
+    }
+}
+
+#[derive(ValueEnum, Clone, Copy, PartialEq, Default, Debug)]
+pub enum MdMermaidRender {
+    Auto,
+    Always,
+    #[default]
+    Never,
+}
+
+impl MdMermaidRender {
+    pub fn should_try_rendering(self) -> bool {
+        !matches!(self, Self::Never)
+    }
+
+    pub fn is_strict(self) -> bool {
+        matches!(self, Self::Always)
+    }
+}
+
+impl std::fmt::Display for MdMermaidRender {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.to_possible_value().unwrap().get_name().fmt(f)
     }

@@ -52,6 +52,7 @@ scraper.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
 regex.workspace = true
+mermaid-rs-renderer.workspace = true
 infer.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
@@ -64,6 +65,7 @@ boxcar.workspace = true
 signal-hook.workspace = true
 tar.workspace = true
 jxl-oxide.workspace = true
+console-mermaid = { git = "https://github.com/AlextheYounga/console-mermaid.git", rev = "c19baf430ced68dbc9185d1181a27d4732628083" }
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true

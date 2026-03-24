@@ -55,6 +55,7 @@ scraper = "0.25.0"
 reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "stream"] }
 indicatif = "0.18.3"
 regex = "1.12.3"
+mermaid-rs-renderer = "0.2.1"
 boxcar = "0.2.14"
 
 thiserror = "2.0.18"
